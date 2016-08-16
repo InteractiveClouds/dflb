@@ -1,0 +1,15 @@
+{
+    "name"       : "dfm",
+    "version"    : "0.0.1",
+    "main"       : "index.js",
+    "description": "update and/or restart dreamface development, deployment servers and compiler",
+    "engines": {
+        "node" : ">=0.10.0"
+    },
+    "dependencies" : {
+        "body-parser" : "*",
+        "express"     : "*",
+        "q"           : "*",
+        "q-io"        : "*"
+    }
+}
