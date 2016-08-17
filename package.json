@@ -8,7 +8,7 @@
     },
     "dependencies" : {
         "body-parser" : "*",
-        "dockerode"   : "^2.3.0"
+        "dockerode"   : "^2.3.0",
         "express"     : "*",
         "q"           : "*",
         "q-io"        : "*"

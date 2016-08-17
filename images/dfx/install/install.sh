@@ -50,7 +50,7 @@ curl -sL https://deb.nodesource.com/setup_4.x | bash -
 apt-get install -y nodejs
 
 print_current_action "creating directories structure"
-mkdir -p /var/lib/dreamface/{src/{dfx,dfc,dfm},deploy,app_fsdb,run-scripts,lock-files,deployonstart,dfm_tmp_run,resources,temptemplates,tmp,app_builds}
+mkdir -p /var/lib/dreamface/{lock-files,dfm_tmp_run,src/{dfx,dfc,dfm},data/{deploy,app_fsdb,run-scripts,deployonstart,resources,temptemplates,tmp,app_builds}}
 
 print_current_action "installing DFX"
 cd /var/lib/dreamface/src/dfx
