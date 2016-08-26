@@ -1,0 +1,15 @@
+{
+  "name": "cyclicBin",
+  "version": "0.0.1",
+  "description": "cyclic array like bin",
+  "main": "cyclicBin.js",
+  "engines": {
+    "node": "*"
+  },
+  "devDependencies": {
+    "mocha": "*"
+  },
+  "directories": {
+    "test": "test"
+  }
+}
