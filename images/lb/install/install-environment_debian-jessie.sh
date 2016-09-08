@@ -28,14 +28,16 @@ curl -sL https://deb.nodesource.com/setup_4.x | bash -
 apt-get install -y nodejs
 
 print_current_action "creating directories structure"
-mkdir -p /var/lib/dreamface/{src/{dflb},lbdata}
+mkdir -p /var/lib/dreamface/src/dflb
+mkdir -p /var/lib/dreamface/lbdata
 
 print_current_action "installing DFLB"
 cd /var/lib/dreamface/src/dflb
 git clone https://github.com/InteractiveClouds/dflb.git .
 git fetch
-git co itest
+git checkout itest
 npm install
+mkdir -p /usr/local/nginx-perl/lib
 cp lib/nginx_dfx_module/LBWorker.pm /usr/local/nginx-perl/lib/LBWorker.pm
 cp lib/nginx_dfx_module/nginx-perl.conf /usr/local/nginx-perl/conf/nginx-perl.conf
 rm /usr/local/nginx-perl/conf/nginx-perl.conf.default

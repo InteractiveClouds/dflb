@@ -11,7 +11,8 @@ use Time::HiRes qw(usleep);
 
 my $STAT_SERVER_ADDR = '127.0.0.1';
 my $STAT_SERVER_PORT = 40008;
-my $lastflush, $socket;
+my $lastflush;
+my $socket;
 my %tenant_map = (
     'dev' => {},
     'dep' => {},
@@ -21,7 +22,7 @@ my %tenant_map = (
 sub init_worker {
 
 
-    my $filename = './tenants.map';
+    my $filename = '/var/lib/dreamface/data/tenants.map';
     my $hasErrors = 0;
     if (open(my $fh, '<:encoding(UTF-8)', $filename)) {
         my $current_cname;

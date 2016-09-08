@@ -1,22 +1,114 @@
+global.CFG = {
+    tenantsMapPath : '/var/lib/dreamface/data/tenants.map',
+    instanceImageName : 'dfx',
+    dfm : {
+        port      : 3049,
+        prototcol : 'http',
+        camtime   : 5,
+    },
+    my : {
+        port : 3050,
+        protocol : 'http', // TODO use it while creating server
+    },
+    events : new (require('./lib/events'))(true),
+    WAIT_FOR_DFMUP : 10000,
+    WAIT_FOR_CUP   : 10000,
+    cConfigs : {
+        "dev" : {
+            "config" : {
+                "server_host" : "0.0.0.0",
+                "server_port" : 3000,
+                "edition": "development",
+                "storage": "mongod",
+                "external_server_host": "192.168.99.100",
+                "external_server_port": 3000,
+                "docker_daemon" : {
+                    "useDefaultSettings" : true
+                },
+                "studio_version": 3,
+                "resources_development_path": "/var/lib/dreamface/data/resources",
+                "tempDirForTemplates" : "/var/lib/dreamface/data/temptemplates",
+                "tempDir" : "/var/lib/dreamface/data/tmp",
+                "app_build_path": "/var/lib/dreamface/data/app_builds",
+                "auth_conf_path" : "/var/lib/dreamface/data/.auth.conf",
+                "mdbw_options" : {
+                    "host" : "192.168.1.119",
+                    "port" : 27017
+                },
+                //"X-DREAMFACE-SERVER" : cloud.servers[0].name,
+                "redis_config" : {
+                    "host" : "192.168.1.119"
+                },
+                compiler : {
+                    host: '192.168.99.100',
+                    port: 3002
+                }
+            }
+        },
+        "dep" : {
+            "config" : {
+                "server_host" : "0.0.0.0",
+                "edition"     : "deployment",
+                "storage"     : "file",
+                "server_port" : 3001,
+                "deploy_path" : "/var/lib/dreamface/data/deploy",
+                "fsdb_path"   : "/var/lib/dreamface/data/app_fsdb",
+                "tempDir"     : "/var/lib/dreamface/data/tmp",
+                "auth_conf_path" : "/var/lib/dreamface/data/.auth.conf",
+                "redis_config" : {
+                    "host" : "192.168.1.119"
+                }
+            }
+        },
+        "dfc" : {
+            "config" : {
+                "server_port" : 3002,
+                "dfx_path" : "/Users/surr/d/p/dfx",
+                "dfx_servers" : [
+                    {
+                        "name" : "dfx",
+                        "cfg"  : {
+                            "address"        : "http://192.168.99.100:3000/",
+                            "auth_conf_path" : "/var/lib/dreamface/data/.auth.conf"
+                        }
+                    }
+                ],
+                "target_dir" : "/var/lib/dreamface/data/comptasks",
+                "tmp_dir"    : "/var/lib/dreamface/data/comptmp"
+            }
+        }
+    }
+};
+
 const
     app  = require('express')(),
     bodyParser = require('body-parser'),
     http = require('http'),
     Q = require('q'),
-    PAPI = require('./lib/PAPI'),
+    fs = require('fs'),
+    PAPI = require('./lib/PAPI').init({
+        docker_daemon : {
+            useDefaultSettings: false,
+            protocol: 'https',
+            checkServerIdentity : false,
+            host : '192.168.99.100',
+            port : process.env.DOCKER_PORT || 2376,
+            ca   : fs.readFileSync('/var/lib/dreamface/data/lbdata/docker.certs/ca.pem').toString('utf8'),
+            cert : fs.readFileSync('/var/lib/dreamface/data/lbdata/docker.certs/cert.pem').toString('utf8'),
+            key  : fs.readFileSync('/var/lib/dreamface/data/lbdata/docker.certs/key.pem').toString('utf8')
+        }
+    }),
     NGINX = require('./lib/NGINX'),
     AR = require('./lib/authRequest').getRequestInstance({}),
     
     RGX_ERROR_URL = /^\/errors\/([^\/]+)\/?/,
     PATH_TO_NGINX_CONFIG = '/usr/local/nginx-perl/conf/nginx-perl.conf',
-    PATH_TO_TENANTS_MAP  = '/var/lib/dreamface/lbdata/tenants.map',
     errors = {
             fallback : function ( req, res, next ) {
                     console.log(req.headers);
                     res.status(503).end('DreamFace Load Balancer: Repeat the request later.');
                 }
-        },
-    CFG = {};
+        };
 
 
 app.use(bodyParser.json({limit:'50mb'}));
@@ -36,147 +128,518 @@ app.use(function(req, res, next){
 });
 
 app.post('/notify', function (req, res, next){
-    console.log('GOT DFM NOTIFICATION : ', req.body);
+    console.log('got %s notification from %s : ', req.body.type, req.ip, req.body);
+    const eventName = utils.convertToEventName(req.body.type, req.ip);
+    if ( eventName ) CFG.events.publish(eventName, req.body);
     res.end();
+});
 
-    //run2();
+app.get('/dump', function (req, res, next){
+    res.json(cloud.dump());
 });
 
 http.createServer(app).listen(3050, '0.0.0.0');
 
+const utils = {
+    convertToEventName : function ( type, ip ) {
+        return type + '_' + ip;
+    }
+};
+
+const serverNames = (function(){
+    const 
+        free = [
+            'Alfred_Binet',
+            'Gottlieb_Daimler',
+            'Max_Delbruck',
+            'Otto_Hahn',
+            'John_Dalton',
+            'Carl_Sagan',
+            'Steven_Chu'
+        ],
+        assigned = {};
+
+    var counter = 0;
+
+    return {
+        get : function(){
+            var name = '';
+            while ( free.length && !name ) {
+                name = free.splice( random(free.length - 1), 1 )[0];
+                if ( assigned.hasOwnProperty(name) ) name = '';
+            }
+            if ( !name ) while ( !name ) {
+                name = ++counter;
+                if ( assigned.hasOwnProperty(name) ) name = '';
+            }
+            assigned[name] = true;
+            return name;
+        },
+
+        markAsAssigned : function ( name ) {
+            return name
+                ? (assigned[name] = true) && name
+                : ''
+        },
+
+        release : function ( name ) {
+            delete assigned[name];
+            free.push(name);
+        }
+    }
+
+    function random ( min, max ) {
+        if ( !max ) { max = min; min = 0; }
+        return min + Math.round(Math.random() * (max - min) );
+    }
+
+})();
+
+//var bindPort = 4001;
+
+const serversList = {};
+function Server ( o ) {
+
+    o = o || {};
+
+    const
+        server = this,
+        started = Q.defer();
+
+    server.name = serverNames.markAsAssigned(o.name) || serverNames.get();
+
+    if ( serversList.hasOwnProperty(server.name) ) return started.reject(
+        'the server ' + server.name + ' already exists'
+    );
+
+    serversList[server.name] = true;
+
+    server.components = {};
+    server.isReconfiguring = false;
+
+
+
+    if ( o.ip ) { // if server exists
+        server.ip = o.ip;
+        server.id = o.id;
+
+        CFG.events.subscribe(
+            utils.convertToEventName('CPU', server.ip),
+            function (event, data) {
+                server.updateCPU(event, data)
+            }
+        );
+
+        return server.getHealth().then(function(res){
+            started.resolve(server);
+            return server;
+        });
+    }
+
+    // if server does not exist
+    PAPI.createInstance({
+        image : CFG.instanceImageName,
+        name  : server.name,
+        dfm   : {
+                //bindPort  : ++bindPort + '', // TODO remove
+                camtime   : CFG.dfm.camtime,
+                notifyURL : CFG.my.protocol + '://' + CFG.my.localIP + ':' + CFG.my.port + '/notify'
+            }
+    })
+    .then(function(res){
+        server.id = res.id;
+        server.ip = res.ip;
+
+        CFG.events.subscribe(
+            utils.convertToEventName('CPU', server.ip),
+            function (event, data) {
+                server.updateCPU(event, data)
+            }
+        );
+
+        console.log('[INFO] created instanse %s, at %s', server.name, server.ip);
+
+        const timeout = setTimeout(
+            function(){
+                server.reject('DFMUP timeout')
+            },
+            CFG.WAIT_FOR_DFMUP
+        );
+
+        CFG.events.subscribe(
+            utils.convertToEventName('DFMUP', server.ip),
+            function onDFMUP (event, data){
+                clearTimeout(timeout);
+                console.log('server %s sent DFMUP', server.ip);
+                CFG.events.unsubscribe(utils.convertToEventName('DFMUP', server.ip), onDFMUP);
+
+                server.changeConfiguration(o)
+                .then(function(){
+                    started.resolve(server)
+                })
+                .done();
+            }
+        );
+
+    })
+    .fail(function(error){ started.reject(error) })
+
+    return started.promise;
+}
+
+Server.prototype.changeConfiguration = function (_config) {
+
+    const
+        server = this,
+        cnames_toStart = _config.components,
+        cnames_toStop = [],
+        cnames_Started = Object.keys(server.components),
+        config = {components:{}},
+        starting = Q.defer(),
+        stopping = Q.defer();
+
+    if ( server.isReconfiguring ) return Q.reject('is reconfiguring');
+
+    server.isReconfiguring = true;
+
+    cnames_Started.forEach(function(cname){
+        const index = cnames_toStart.indexOf(cname);
+        if ( !!~index ) cnames_toStart.splice(index, 1);
+        if ( !~_config.components.indexOf(cname) ) cnames_toStop.push(cname);
+    });
+
+    cnames_toStart.forEach(function(cname){
+        config.components[cname] = JSON.parse(JSON.stringify(CFG.cConfigs[cname]));
+        config.components[cname].config['X-DREAMFACE-SERVER'] = server.name;
+    });
+
+    if ( cnames_toStop.length ) {
+        console.log('[INFO] CHANGE CONFIGURATION : stopping ', cnames_toStop);
+        AR.post({
+            url : CFG.dfm.prototcol + '://' + server.ip + ':' + CFG.dfm.port + '/stop',
+            headers: {'Content-Type': 'application/json; charset=utf-8'},
+            body : JSON.stringify({components : cnames_toStop})
+        })
+        .then(function(){stopping.resolve()})
+        .fail(function(error){stopping.reject(error)});
+    } else {
+        stopping.resolve();
+    }
+
+    if ( cnames_toStart.length ) {
+        console.log('[INFO] CHANGE CONFIGURATION : starting ', cnames_toStart);
+        AR.post({
+            url : CFG.dfm.prototcol + '://' + server.ip + ':' + CFG.dfm.port + '/start',
+            headers: {'Content-Type': 'application/json; charset=utf-8'},
+            body : JSON.stringify(config)
+        })
+        .then(function(response){
+            try {
+                const answer = JSON.parse(response.body.toString('utf8'));
+            } catch (error) {
+                //console.log('RESPONSE : ', response.body.toString('utf8'));
+                server.isReconfiguring = false;
+                return Q.reject('can not parse CUP response');
+            }
+
+            if ( response.status*1 !== 202 ) {
+                server.isReconfiguring = false;
+                return Q.reject('server returned non 202');
+            }
+
+
+            // subscribe on CUP
+            const
+                eventName = utils.convertToEventName('CUP', server.ip),
+                D = Q.defer(),
+                timeout = setTimeout(
+                        function(){
+                            server.isReconfiguring = false;
+                            CFG.events.unsubscribe( eventName, onCUP);
+                            D.reject('CUP timeout');
+                        },
+                        CFG.WAIT_FOR_CUP
+                    );
+            
+            function onCUP (event, answer) {
+                //console.log(typeof answer, answer);
+                CFG.events.unsubscribe( eventName, onCUP);
+                clearTimeout(timeout);
+                server.isReconfiguring = false;
+                if ( answer.status !== 'done' ) return D.reject('CUP status is failed');
+
+                server.getHealth()
+                .then(function(){D.resolve()})
+                .fail(function(error){D.reject(error)})
+            }
+            CFG.events.subscribe( eventName, onCUP);
+
+            return D.promise;
+        })
+        .then(function(){starting.resolve()})
+        .fail(function(error){starting.reject(error)});
+    } else {
+        starting.resolve();
+    }
+
+    return Q.all([starting, stopping]);
+}
+
+
+Server.prototype.getHealth = function () {
+
+    const server = this;
+
+    return AR.get({
+        url : CFG.dfm.prototcol + '://' + this.ip + ':' + CFG.dfm.port + '/health'
+    })
+    .then(function(response){
+
+        try {
+            const health = JSON.parse(response.body.toString('utf8'));
+        } catch (error) {
+            return console.error('[ERROR] getHealth parse : ', error);
+        }
+
+        server.updateCPU(null, health);
+    })
+};
+
+Server.prototype.updateCPU = function (event, _status) {
+    // event is not used
+    const
+        server = this,
+        list = _status.componentsStatus || _status.stat,
+        CPU  = { total : _status.currentTotalCPULevel || _status.level };
+
+    for ( var cname in list ) {
+        server.components[cname] = {
+            CPU : list[cname].CPU
+        };
+    }
+    server.CPU = CPU;
+};
+
+Server.prototype.remove = function () {
+    const server = this;
+
+    return server.changeConfiguration({components:[]})
+    .then(function(){
+        return PAPI.removeInstance(server.id);
+    })
+};
+
+
+const cloud = {
+    isReorganizing : true,
+    servers : [],
+    mapIpToServer : {},
+    tenants : {}, // .map = {}
+
+    createInstance : function ( config ) {
+        return (new Server(config))
+        .then(function(server){
+            cloud.mapIpToServer[server.ip] = server;
+            cloud.servers.push(server);
+        });
+    },
+
+    includeInstance : function ( item ) {
+        return (new Server(item)).then(function(server){
+            cloud.mapIpToServer[server.ip] = server;
+            cloud.servers.push(server);
+        });
+    },
+
+    removeInstance : function ( server ) {
+        return server.remove()
+        .then(function(){
+            const index = cloud.servers.indexOf(server);
+            if ( !!~index ) cloud.servers.splice(index, 1);
+            delete cloud.mapIpToServer[server.ip]
+        })
+    },
+
+    init : function () {
+    
+        return getMyLocalIP().then(function(ip){
+            console.log('my IP is ', ip);
+            CFG.my.localIP = ip;
+
+            return Q.all([
+
+                NGINX.readConfig().then(function(map){
+                    cloud.tenants.map = map;
+                }),
+    
+                PAPI.listInstances().then(function(list){
+                    list = list || [];
+                    return Q.all(list.map(function(item){
+                        return cloud.includeInstance(item);
+                    }));
+                })
+            ])
+        })
+        .then(function(){ cloud.isReorganizing = false});
+    },
+
+    dump : function () {
+        const res = [];
+        cloud.servers.forEach(function(server){
+            res.push({
+                name       : server.name,
+                ip         : server.ip,
+                id         : server.id,
+                components : server.components
+            });
+        });
+        return res;
+    }
+};
+
+cloud.init()
+.then(function(){
+    return cloud.createInstance({components:['dep']})
+    .then(function(){
+        console.log('[INFO] CLOUD DUMP 1 : ', cloud.dump());
+        return Q.delay(10000)
+        .then(function(){
+            return Q.all(cloud.servers.map(function(server){
+                return cloud.removeInstance(server)
+            }))
+        })
+    })
+    .then(function(){
+        console.log('[INFO] CLOUD DUMP 2 : ', cloud.dump());
+    });
+})
+.done();
+
+
+function getMyLocalIP () {
+    const D = Q.defer();
+    require('child_process').exec('hostname -I', {timeout:5000}, function (error, stdout, stderr){
+        error || stderr
+            ? D.reject(error || stderr)
+            : D.resolve(stdout.replace(/[\s\r\n]+$/, ''));
+    });
+    return D.promise;
+}
+
+
 
 // ------------------------------------------------------------ TODO
 
-const
-    INSTANCE_ONE_NAME = 'dfx_instance_1',
-    INSTANCE_TWO_NAME = 'dfx_instance_2';
-
-var
-    instanceOneIP, instanceTwoIP;
-
-PAPI.runInstance({
-    image : 'l_dfx',
-    name  : INSTANCE_ONE_NAME,
-    dfm   : {
-            bindPort  : '4001',
-            camtime   : '5',
-            notifyURL : 'http://172.17.0.2:3050/notify'
-        }
-})
-.then(function(ip){
-    instanceOneIP = ip;
-    console.log('new instance IP : %s', ip);
-
-    return Q.delay(5000).then(function(){
-        return AR.post({
-            url: 'http://' + ip + ':3049/start',
-            headers: {'Content-Type': 'application/json; charset=utf-8'},
-            body: JSON.stringify({
-                "components" : {
-                    "dev" : {
-                        "config" : {
-                            "server_host" : "0.0.0.0",
-                            "server_port" : 3000,
-                            "edition": "development",
-                            "storage": "mongod",
-                            "external_server_host": "192.168.99.100",
-                            "external_server_port": 3000,
-                            "docker_daemon" : {
-                                "useDefaultSettings" : true
-                            },
-                            "studio_version": 3,
-                            "resources_development_path": "/var/lib/dreamface/data/resources",
-                            "tempDirForTemplates" : "/var/lib/dreamface/data/temptemplates",
-                            "tempDir" : "/var/lib/dreamface/data/tmp",
-                            "app_build_path": "/var/lib/dreamface/data/app_builds",
-                            "auth_conf_path" : "/var/lib/dreamface/data/.auth.conf",
-                            "mdbw_options" : {
-                                "host" : "192.168.1.119",
-                                "port" : 27017
-                            },
-                            "X-DREAMFACE-SERVER" : INSTANCE_ONE_NAME,
-                            "redis_config" : {
-                                "host" : "192.168.1.119"
-                            }
-                        }
-                    }
-                }
-            })
-        })
-        .then(function(res){
-            console.log('instance 1 start dev response : ', res.body.toString('utf-8'));
-            NGINX.changeConfig(PATH_TO_TENANTS_MAP, {
-                '*' : instanceOneIP
-            });
-        });
-    });
-})
-.fail(function(error){
-    console.log('ERROR : ', error);
-});
-
-
-
-function run2 () {
-    return PAPI.runInstance({
-        image : 'l_dfx',
-        name  : INSTANCE_TWO_NAME,
-        dfm   : {
-                bindPort  : '4002',
-                camtime   : '5',
-                notifyURL : 'http://172.17.0.2:3050/notify'
-            }
-    })
-    .then(function(ip){
-        instanceTwoIP = ip;
-        console.log('new instance IP : %s', ip);
-    
-        return Q.delay(5000).then(function(){
-            return AR.post({
-                url: 'http://' + ip + ':3049/start',
-                headers: {'Content-Type': 'application/json; charset=utf-8'},
-                body: JSON.stringify({
-                    "components" : {
-                        "dev" : {
-                            "config" : {
-                                "server_host" : "0.0.0.0",
-                                "server_port" : 3000,
-                                "edition": "development",
-                                "storage": "mongod",
-                                "external_server_host": "192.168.99.100",
-                                "external_server_port": 3000,
-                                "docker_daemon" : {
-                                    "useDefaultSettings" : true
-                                },
-                                "studio_version": 3,
-                                "resources_development_path": "/var/lib/dreamface/data/resources",
-                                "tempDirForTemplates" : "/var/lib/dreamface/data/temptemplates",
-                                "tempDir" : "/var/lib/dreamface/data/tmp",
-                                "app_build_path": "/var/lib/dreamface/data/app_builds",
-                                "auth_conf_path" : "/var/lib/dreamface/data/.auth.conf",
-                                "mdbw_options" : {
-                                    "host" : "192.168.1.119",
-                                    "port" : 27017
-                                },
-                                "X-DREAMFACE-SERVER" : INSTANCE_TWO_NAME,
-                                "redis_config" : {
-                                    "host" : "192.168.1.119"
-                                }
-                            }
-                        }
-                    }
-                })
-            })
-            .then(function(res){
-                console.log('instance 2 start dev response : ', res.body.toString('utf-8'));
-                return NGINX.changeConfig(PATH_TO_TENANTS_MAP, {
-                    'com' : instanceTwoIP,
-                    '*'   : instanceOneIP
-                });
-            });
-        });
-    })
-    .fail(function(error){
-        console.log('ERROR : ', error);
-    });
-};
+//const
+//    INSTANCE_ONE_NAME = 'dfx_instance_1',
+//    INSTANCE_TWO_NAME = 'dfx_instance_2';
+//
+//var
+//    instanceOneIP, instanceTwoIP;
+//
+//PAPI.createInstance({
+//    image : 'dfx',
+//    name  : INSTANCE_ONE_NAME,
+//    dfm   : {
+//            bindPort  : '4001',
+//            camtime   : '5',
+//            notifyURL : 'http://172.17.0.3:3050/notify'
+//        }
+//})
+//.then(function(cfg){
+//    const ip = cfg.ip;
+//
+//    instanceOneIP = ip;
+//    console.log('new instance IP : %s', ip);
+//
+//    return Q.delay(5000).then(function(){
+//        return AR.post({
+//            url: 'http://' + ip + ':3049/start',
+//            headers: {'Content-Type': 'application/json; charset=utf-8'},
+//            body: JSON.stringify({
+//                "components" : {
+//                    "dev" : {
+//                        "config" : {
+//                            "server_host" : "0.0.0.0",
+//                            "server_port" : 3000,
+//                            "edition": "development",
+//                            "storage": "mongod",
+//                            "external_server_host": "192.168.99.100",
+//                            "external_server_port": 3000,
+//                            "docker_daemon" : {
+//                                "useDefaultSettings" : true
+//                            },
+//                            "studio_version": 3,
+//                            "resources_development_path": "/var/lib/dreamface/data/resources",
+//                            "tempDirForTemplates" : "/var/lib/dreamface/data/temptemplates",
+//                            "tempDir" : "/var/lib/dreamface/data/tmp",
+//                            "app_build_path": "/var/lib/dreamface/data/app_builds",
+//                            "auth_conf_path" : "/var/lib/dreamface/data/.auth.conf",
+//                            "mdbw_options" : {
+//                                "host" : "192.168.1.119",
+//                                "port" : 27017
+//                            },
+//                            "X-DREAMFACE-SERVER" : INSTANCE_ONE_NAME,
+//                            "redis_config" : {
+//                                "host" : "192.168.1.119"
+//                            },
+//                            compiler : {
+//                                host: '192.168.99.100',
+//                                port: 3002
+//                            }
+//                        }
+//                    },
+//                    "dep" : {
+//                        "config" : {
+//                            "server_host" : "0.0.0.0",
+//                            "edition"     : "deployment",
+//                            "storage"     : "file",
+//                            "server_port" : 3001,
+//                            "deploy_path" : "/var/lib/dreamface/data/deploy",
+//                            "fsdb_path"   : "/var/lib/dreamface/data/app_fsdb",
+//                            "tempDir"     : "/var/lib/dreamface/data/tmp",
+//                            "auth_conf_path" : "/var/lib/dreamface/data/.auth.conf",
+//                            "redis_config" : {
+//                                "host" : "192.168.1.119"
+//                            }
+//                        }
+//                    },
+//                    "dfc" : {
+//                        "config" : {
+//                            "server_port" : 3002,
+//                            "dfx_path" : "/Users/surr/d/p/dfx",
+//                            "dfx_servers" : [
+//                                {
+//                                    "name" : "dfx",
+//                                    "cfg"  : {
+//                                        "address"        : "http://192.168.99.100:3000/",
+//                                        "auth_conf_path" : "/var/lib/dreamface/data/.auth.conf"
+//                                    }
+//                                }
+//                            ],
+//                            "target_dir" : "/var/lib/dreamface/data/comptasks",
+//                            "tmp_dir"    : "/var/lib/dreamface/data/comptmp"
+//                        }
+//                    }
+//                }
+//            })
+//        })
+//        .then(function(res){
+//            console.log('instance 1 start dev response : ', res.body.toString('utf-8'));
+//            NGINX.changeConfig(PATH_TO_TENANTS_MAP, {
+//                'dev' : {
+//                    '*' : 'http://' + instanceOneIP + ':3000'
+//                },
+//                'dep' : {
+//                    '*' : 'http://' + instanceOneIP + ':3001'
+//                },
+//                'dfc' : {
+//                    '*' : 'http://' + instanceOneIP + ':3002'
+//                }
+//            });
+//        });
+//    });
+//})
+//.fail(function(error){
+//    console.log('ERROR : ', error);
+//});
