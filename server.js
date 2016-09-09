@@ -13,6 +13,16 @@ global.CFG = {
     events : new (require('./lib/events'))(true),
     WAIT_FOR_DFMUP : 10000,
     WAIT_FOR_CUP   : 10000,
+    loadLevels : {
+        regular : {
+            idle : 1,
+            high : 9
+        },
+        master : {
+            idle : -1,
+            high : 6
+        }
+    },
     cConfigs : {
         "dev" : {
             "config" : {
@@ -216,6 +226,7 @@ function Server ( o ) {
 
     server.components = {};
     server.isReconfiguring = false;
+    server.CPU = 0;
 
 
 
@@ -406,18 +417,18 @@ Server.prototype.getHealth = function () {
 };
 
 Server.prototype.updateCPU = function (event, _status) {
-    // event is not used
+    // 'event' argument is not used
     const
         server = this,
         list = _status.componentsStatus || _status.stat,
-        CPU  = { total : _status.currentTotalCPULevel || _status.level };
+        CPU  = _status.currentTotalCPULevel || _status.level || 0;
 
     for ( var cname in list ) {
         server.components[cname] = {
-            CPU : list[cname].CPU
+            CPU : list[cname].CPU < 0 ? 0 : list[cname]
         };
     }
-    server.CPU = CPU;
+    server.CPU = CPU < 0 ? 0 : CPU;
 };
 
 Server.prototype.remove = function () {
@@ -441,6 +452,14 @@ const cloud = {
         .then(function(server){
             cloud.mapIpToServer[server.ip] = server;
             cloud.servers.push(server);
+
+            var map = cloud.tenants.map;
+            config.tenants.forEach(function(tenant){
+                map.dev[tenant] = server.ip;
+                map.dep[tenant] = server.ip;
+                map.dfc[tenant] = server.ip;
+            });
+            return NGINX.changeConfig(map);
         });
     },
 
@@ -457,6 +476,25 @@ const cloud = {
             const index = cloud.servers.indexOf(server);
             if ( !!~index ) cloud.servers.splice(index, 1);
             delete cloud.mapIpToServer[server.ip]
+
+            const
+                tenantsToRemoveFromMap = [],
+                devMap = cloud.tenants.map.dev;
+            for ( var tenant in devMap ) {
+                if ( devMap[tenant] === server.ip ) {
+                    tenantsToRemoveFromMap.push(tenant);
+                }
+            }
+
+            tenantsToRemoveFromMap.forEach(function(tenant){
+                delete cloud.tenants.map.dev[tenant];
+                delete cloud.tenants.map.dep[tenant];
+                delete cloud.tenants.map.dfc[tenant];
+            });
+
+            if ( tenantsToRemoveFromMap.length ) {
+                return NGINX.changeConfig(cloud.tenants.map);
+            }
         })
     },
 
@@ -474,9 +512,24 @@ const cloud = {
     
                 PAPI.listInstances().then(function(list){
                     list = list || [];
-                    return Q.all(list.map(function(item){
-                        return cloud.includeInstance(item);
-                    }));
+                    if ( list.length ) {
+                        return Q.all(list.map(function(item){
+                            return cloud.includeInstance(item);
+                        }))
+                        .then(function(){
+                            cloud.masterServer = cloud.mapIpToServer[
+                                    cloud.tenants.map.dev['*']
+                                ];
+                        });
+                    } else {
+                        return cloud.createInstance({
+                            components : ['dev', 'dep', 'dfc'],
+                            tenants    : ['*']
+                        })
+                        .then(function(){
+                            cloud.masterServer = cloud.servers[0];
+                        })
+                    }
                 })
             ])
         })
@@ -484,52 +537,101 @@ const cloud = {
     },
 
     dump : function () {
-        const res = [];
+        const
+            idles   = [],
+            highs   = [],
+            normals = [],
+            servers = [];
+        var cloudCPU = 0;
         cloud.servers.forEach(function(server){
-            res.push({
+            cloudCPU += server.CPU;
+            const
+                isMaster = cloud.masterServer === server,
+                load = isMaster
+                    ? server.CPU <= CFG.loadLevels.master.idle
+                        ? 'idle'
+                        : server.CPU >= CFG.loadLevels.master.high
+                            ? 'high'
+                            : 'normal'
+                    : server.CPU <= CFG.loadLevels.regular.idle
+                        ? 'idle'
+                        : server.CPU >= CFG.loadLevels.regular.high
+                            ? 'high'
+                            : 'normal';
+            servers.push({
                 name       : server.name,
                 ip         : server.ip,
                 id         : server.id,
-                components : server.components
+                components : server.components,
+                cpu        : server.CPU,
+                load       : load
             });
+
+            if ( load === 'idle' ) idles.push(server.ip);
+            else if ( load === 'high' ) highs.push(server.ip)
+            else normals.push(server.ip)
         });
-        return res;
+
+        cloudCPU = cloudCPU / cloud.servers.length;
+        const cloudLevel = cloudCPU <= CFG.loadLevels.regular.idle
+                    ? 'idle'
+                    : cloudCPU >= CFG.loadLevels.regular.high
+                        ? 'high'
+                        : 'normal';
+
+        return {
+            servers : servers,
+            cloud : {
+                tenantsMap : JSON.stringify(cloud.tenants.map),
+                master     : cloud.masterServer.name,
+                CPU        : cloudCPU,
+                level      : cloudLevel,
+                idles      : idles,
+                normals    : normals,
+                highs      : highs
+            }
+        };
+    },
+
+    balance : function () {
+        const
+            tasks = [],
+            dump = cloud.dump();
+
+        if ( dump.cloud.level === 'idle' ) {
+            dump.cloud.idles.forEach(function(ip){
+                tasks.push(cloud.removeInstance(cloud.mapIpToServer[ip]));
+            });
+        }
+
+        return Q.all(tasks);
     }
 };
 
 cloud.init()
 .then(function(){
-    //return Q.delay(15000).then(function(){
-    //    Q.all(cloud.servers.map(function(server){ return server.remove(); }));
-    //});
+    return cloud.createInstance({components:['dev', 'dep'], tenants : ['com', 'test']})
+    .then(function(){
+        console.log('------------------------------ created');
+        console.log(cloud.dump());
 
-    //return cloud.createInstance({components:['dev', 'dep']})
-    //.then(function(){
-    //    const server = cloud.servers[0];
-    //    return NGINX.changeConfig({
-    //        'dev' : {
-    //            '*' : server.ip
-    //        },
-    //        'dep' : {
-    //            '*' : server.ip
-    //        },
-    //        'dfc' : {
-    //            '*' : server.ip
-    //        }
-    //    })
-    //})
-    //.then(function(){
-        const server = cloud.servers[0];
-        console.log('[INFO] CLOUD DUMP 2 : ', cloud.dump());
         setInterval(function(){
-            AR.get({
-                url : 'http://localhost:40009/stat/'+encodeURIComponent(server.ip)
+            cloud.balance().then(function(){
+                console.log('---------------------------------- balanced :');
+                console.log(cloud.dump());
             })
-            .then(function(res){
-                console.log('\n\nSTAT : ', res.body.toString('utf8'));
-            })
-        }, 10000);
-    //});
+            .done();
+        }, 60000);
+    })
+
+    //        AR.get({
+    //            url : 'http://localhost:40009/stat/'+encodeURIComponent(server.ip)
+    //        })
+    //        .then(function(res){
+    //            console.log('\n\nSTAT : ', res.body.toString('utf8'));
+    //        })
+
+
 })
 .done();
 
