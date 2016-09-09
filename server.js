@@ -499,19 +499,37 @@ const cloud = {
 
 cloud.init()
 .then(function(){
-    return cloud.createInstance({components:['dep']})
-    .then(function(){
-        console.log('[INFO] CLOUD DUMP 1 : ', cloud.dump());
-        return Q.delay(10000)
-        .then(function(){
-            return Q.all(cloud.servers.map(function(server){
-                return cloud.removeInstance(server)
-            }))
-        })
-    })
-    .then(function(){
+    //return Q.delay(15000).then(function(){
+    //    Q.all(cloud.servers.map(function(server){ return server.remove(); }));
+    //});
+
+    //return cloud.createInstance({components:['dev', 'dep']})
+    //.then(function(){
+    //    const server = cloud.servers[0];
+    //    return NGINX.changeConfig({
+    //        'dev' : {
+    //            '*' : server.ip
+    //        },
+    //        'dep' : {
+    //            '*' : server.ip
+    //        },
+    //        'dfc' : {
+    //            '*' : server.ip
+    //        }
+    //    })
+    //})
+    //.then(function(){
+        const server = cloud.servers[0];
         console.log('[INFO] CLOUD DUMP 2 : ', cloud.dump());
-    });
+        setInterval(function(){
+            AR.get({
+                url : 'http://localhost:40009/stat/'+encodeURIComponent(server.ip)
+            })
+            .then(function(res){
+                console.log('\n\nSTAT : ', res.body.toString('utf8'));
+            })
+        }, 10000);
+    //});
 })
 .done();
 
@@ -525,121 +543,3 @@ function getMyLocalIP () {
     });
     return D.promise;
 }
-
-
-
-// ------------------------------------------------------------ TODO
-
-//const
-//    INSTANCE_ONE_NAME = 'dfx_instance_1',
-//    INSTANCE_TWO_NAME = 'dfx_instance_2';
-//
-//var
-//    instanceOneIP, instanceTwoIP;
-//
-//PAPI.createInstance({
-//    image : 'dfx',
-//    name  : INSTANCE_ONE_NAME,
-//    dfm   : {
-//            bindPort  : '4001',
-//            camtime   : '5',
-//            notifyURL : 'http://172.17.0.3:3050/notify'
-//        }
-//})
-//.then(function(cfg){
-//    const ip = cfg.ip;
-//
-//    instanceOneIP = ip;
-//    console.log('new instance IP : %s', ip);
-//
-//    return Q.delay(5000).then(function(){
-//        return AR.post({
-//            url: 'http://' + ip + ':3049/start',
-//            headers: {'Content-Type': 'application/json; charset=utf-8'},
-//            body: JSON.stringify({
-//                "components" : {
-//                    "dev" : {
-//                        "config" : {
-//                            "server_host" : "0.0.0.0",
-//                            "server_port" : 3000,
-//                            "edition": "development",
-//                            "storage": "mongod",
-//                            "external_server_host": "192.168.99.100",
-//                            "external_server_port": 3000,
-//                            "docker_daemon" : {
-//                                "useDefaultSettings" : true
-//                            },
-//                            "studio_version": 3,
-//                            "resources_development_path": "/var/lib/dreamface/data/resources",
-//                            "tempDirForTemplates" : "/var/lib/dreamface/data/temptemplates",
-//                            "tempDir" : "/var/lib/dreamface/data/tmp",
-//                            "app_build_path": "/var/lib/dreamface/data/app_builds",
-//                            "auth_conf_path" : "/var/lib/dreamface/data/.auth.conf",
-//                            "mdbw_options" : {
-//                                "host" : "192.168.1.119",
-//                                "port" : 27017
-//                            },
-//                            "X-DREAMFACE-SERVER" : INSTANCE_ONE_NAME,
-//                            "redis_config" : {
-//                                "host" : "192.168.1.119"
-//                            },
-//                            compiler : {
-//                                host: '192.168.99.100',
-//                                port: 3002
-//                            }
-//                        }
-//                    },
-//                    "dep" : {
-//                        "config" : {
-//                            "server_host" : "0.0.0.0",
-//                            "edition"     : "deployment",
-//                            "storage"     : "file",
-//                            "server_port" : 3001,
-//                            "deploy_path" : "/var/lib/dreamface/data/deploy",
-//                            "fsdb_path"   : "/var/lib/dreamface/data/app_fsdb",
-//                            "tempDir"     : "/var/lib/dreamface/data/tmp",
-//                            "auth_conf_path" : "/var/lib/dreamface/data/.auth.conf",
-//                            "redis_config" : {
-//                                "host" : "192.168.1.119"
-//                            }
-//                        }
-//                    },
-//                    "dfc" : {
-//                        "config" : {
-//                            "server_port" : 3002,
-//                            "dfx_path" : "/Users/surr/d/p/dfx",
-//                            "dfx_servers" : [
-//                                {
-//                                    "name" : "dfx",
-//                                    "cfg"  : {
-//                                        "address"        : "http://192.168.99.100:3000/",
-//                                        "auth_conf_path" : "/var/lib/dreamface/data/.auth.conf"
-//                                    }
-//                                }
-//                            ],
-//                            "target_dir" : "/var/lib/dreamface/data/comptasks",
-//                            "tmp_dir"    : "/var/lib/dreamface/data/comptmp"
-//                        }
-//                    }
-//                }
-//            })
-//        })
-//        .then(function(res){
-//            console.log('instance 1 start dev response : ', res.body.toString('utf-8'));
-//            NGINX.changeConfig(PATH_TO_TENANTS_MAP, {
-//                'dev' : {
-//                    '*' : 'http://' + instanceOneIP + ':3000'
-//                },
-//                'dep' : {
-//                    '*' : 'http://' + instanceOneIP + ':3001'
-//                },
-//                'dfc' : {
-//                    '*' : 'http://' + instanceOneIP + ':3002'
-//                }
-//            });
-//        });
-//    });
-//})
-//.fail(function(error){
-//    console.log('ERROR : ', error);
-//});

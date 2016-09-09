@@ -7,6 +7,12 @@ else
     node lib/statServer/index.js &
 fi
 
+while [ "X${STAT_PING}" != "Xpong" ]; do
+echo "[INFO] waiting for stat server is up..."
+sleep 3
+STAT_PING=`curl -s http://127.0.0.1:40009/ping`
+done
+
 NGINX_PID=`pgrep -f 'nginx-perl: master process'`
 
 if [ "X${NGINX_PID}" == "X" ]; then

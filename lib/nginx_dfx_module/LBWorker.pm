@@ -18,6 +18,11 @@ my %tenant_map = (
     'dep' => {},
     'dfc' => {}
 );
+my %port_map = (
+    'dev' => '3000',
+    'dep' => '3001',
+    'dfc' => '3002'
+);
 
 sub init_worker {
 
@@ -118,13 +123,14 @@ sub on_request {
     my ($r) = @_;
     my $tenant    = $r->variable("cookie_X-DREAMFACE-TENANT") || "*";
     my $component = $r->variable("dfx_component");
-    my $server    = $tenant_map{$component}{$tenant} || $tenant_map{$component}{"*"} || 0;
+    my $ip        = $tenant_map{$component}{$tenant} || $tenant_map{$component}{"*"} || 0;
     my $uri       = $r->variable("request_uri");
+    my $server    = 'http://'.${ip}.':'.$port_map{$component};
 
-    sendStatistic($server, $component, $tenant, $uri);
+    sendStatistic($ip, $component, $tenant, $uri);
 
     $r->header_out("X-DEFINED-DREAMFACE-TENANT", $tenant);
-    $r->variable("dfx_target_instance", $server) if ( $server );
+    $r->variable("dfx_target_instance", $server) if ( $ip );
     
     $r->phase_handler_inc;
     $r->core_run_phases;
