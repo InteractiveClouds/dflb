@@ -96,7 +96,7 @@ cat > /var/lib/dreamface/dfm.config.json <<EOT
         "code" : {
             "path" : "/var/lib/dreamface/src/dfc",
             "git"  : {
-                "branch" : "master"
+                "branch" : "dev"
             }
         },
         "lock" : {
@@ -141,6 +141,8 @@ ln -s /var/lib/dreamface/dfm.config.json /usr/local/etc/dfm.config.json
 
 print_current_action "updating dfm"
 cd /var/lib/dreamface/src/dfm/
+git fetch
+git checkout dev
 npm install
 
 cat > /var/lib/dreamface/invoke.sh <<EOT
