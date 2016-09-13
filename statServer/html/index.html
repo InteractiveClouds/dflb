@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html ng-app="stats">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Load balancing statistics</title>
+    <script>document.write('<base href="' + document.location + '" />');</script>
+
+    <link rel="stylesheet" href="html/style.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/nvd3/1.8.1/nv.d3.min.css"/>
+    <link rel="stylesheet" href="http://ajax.googleapis.com/ajax/libs/angular_material/1.0.0/angular-material.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+
+    <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular.min.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular-animate.min.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular-aria.min.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular-messages.min.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/angular_material/1.0.0/angular-material.min.js"></script>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js" charset="utf-8"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nvd3/1.8.1/nv.d3.min.js"></script>
+    <script src="https://rawgit.com/krispo/angular-nvd3/v1.0.4/dist/angular-nvd3.js"></script>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="text/javascript">
+        try {
+            var GLOBAL_SOCKET  = io(
+                    'http://' + window.location.hostname + ':' + window.location.port
+            );
+        }
+    catch(err) {}
+    </script>
+    <script src="html/app.js"></script>
+</head>
+
+<body ng-controller="MainCtrl" class="sample tabsdemoDynamicTabs" layout="column" ng-cloak="">
+
+<md-content class="md-padding">
+    <div ng-show="!emptyTabs">
+        <md-tabs id="md-tabs-id" md-selected="selectedIndex" md-border-bottom="" md-autoselect="" md-dynamic-height="true">
+            <md-tab ng-repeat="tab in tabs track by $index" ng-disabled="tab.disabled" label="{{tab.title}}">
+                <div class="demo-tab tab{{$index%4}}">
+                    <H1>CPU usage:</H1>
+                    <nvd3 options="tab.options" data="tab.data"></nvd3>
+                    <H1>Requests:</H1>
+                    <nvd3 options="tab.options1" data="tab.data1"></nvd3>
+                </div>
+            </md-tab>
+        </md-tabs>
+    </div>
+    <p ng-show="emptyTabs" align="center">No info...</p>
+</md-content>
+
+
+</html>
