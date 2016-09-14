@@ -4,18 +4,19 @@ var app = angular.module('stats',['ngMaterial','nvd3'])
 
     .controller('MainCtrl', ['$scope','$timeout',function($scope, $timeout) {
         var counters = [];
-        function push_template(instance_name) {
+        function push_template(instance) {
             $scope.tabs.push({
-                title: instance_name,
+                title: instance.instance,
+                info : instance.info,
                 options: {
                     chart: {
                         type: 'lineChart',
-                        height: 180,
+                        height: 250,
                         margin : {
                             top: 20,
-                            right: 100,
+                            right: 70,
                             bottom: 40,
-                            left: 100
+                            left: 70
                         },
                         x: function(d){ if (d) return d.x; },
                         y: function(d){ if (d) return d.y; },
@@ -37,12 +38,12 @@ var app = angular.module('stats',['ngMaterial','nvd3'])
                 options1: {
                     chart: {
                         type: 'lineChart',
-                        height: 180,
+                        height: 250,
                         margin : {
                             top: 20,
-                            right: 100,
+                            right: 70,
                             bottom: 40,
-                            left: 100
+                            left: 70
                         },
                         x: function(d){ if (d) return d.x; },
                         y: function(d){ if (d) return d.y; },
@@ -88,13 +89,13 @@ var app = angular.module('stats',['ngMaterial','nvd3'])
         GLOBAL_SOCKET.on("statistics", function(data){
             // Add tabs engine
             if (!$scope.tabs.length) {
-                push_template(data.instance);
+                push_template(data);
             } else {
                 var tab = $scope.tabs.filter(function(tab){
                     return tab.title == data.instance;
                 });
                 if (tab.length == 0) {
-                    push_template(data.instance);
+                    push_template(data);
                 }
             }
 
@@ -137,11 +138,7 @@ var app = angular.module('stats',['ngMaterial','nvd3'])
                         $scope.tabs[tab_index].data1.forEach(function(val, index1){
                             val.values.forEach(function(val_datas, index2){
                                 if (val_datas.x === data.time) {
-                                    console.log("HERE");
-                                    console.log(val);
-                                    console.log(data);
                                     if (val.key == data.component) {
-                                        console.log("HERE1");
                                         if (data.component == 'dev')  $scope.tabs[tab_index].data1[0].values[index2].y++;
                                         if (data.component == 'dep')  $scope.tabs[tab_index].data1[1].values[index2].y++;
                                         if (data.component == 'dfc')  $scope.tabs[tab_index].data1[2].values[index2].y++;

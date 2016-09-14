@@ -42,9 +42,16 @@
         <md-tabs id="md-tabs-id" md-selected="selectedIndex" md-border-bottom="" md-autoselect="" md-dynamic-height="true">
             <md-tab ng-repeat="tab in tabs track by $index" ng-disabled="tab.disabled" label="{{tab.title}}">
                 <div class="demo-tab tab{{$index%4}}">
-                    <H1>CPU usage:</H1>
+                    <H2>Instance infomation:</H2>
+                    <div style="font-size: 12px; margin-left:20px;">
+                        <!--<p>Name : {{tab.info.name}}</p>-->
+                        <p>Development - {{tab.info.dev.ip}}:{{tab.info.dev.port}}</p>
+                        <p>Deployment - {{tab.info.dep.ip}}:{{tab.info.dep.port}}</p>
+                        <p>Compiler - {{tab.info.cmp.ip}}:{{tab.info.cmp.port}}</p>
+                    </div>
+                    <H2>CPU usage:</H2>
                     <nvd3 options="tab.options" data="tab.data"></nvd3>
-                    <H1>Requests:</H1>
+                    <H2>Requests per second:</H2>
                     <nvd3 options="tab.options1" data="tab.data1"></nvd3>
                 </div>
             </md-tab>
