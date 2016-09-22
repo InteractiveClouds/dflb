@@ -85,7 +85,8 @@ function Server ( o ) {
                 .then(function(){
                     started.resolve(server)
                 })
-                .done();
+                .fail(function(error){ console.error('SERVER CHANGE CONFIG ERROR : ', error) })
+                //.done();
             }
         );
 
@@ -272,31 +273,37 @@ cloud.includeInstance = function ( item ) {
 };
 
 cloud.removeInstance = function ( server ) {
-    return server.remove()
-    .then(function(){
-        const index = cloud.servers.indexOf(server);
-        if ( !!~index ) cloud.servers.splice(index, 1);
-        delete cloud.mapIpToServer[server.ip]
 
-        const
-            tenantsToRemoveFromMap = [],
-            devMap = cloud.tenants.map.dev;
-        for ( var tenant in devMap ) {
-            if ( devMap[tenant] === server.ip ) {
-                tenantsToRemoveFromMap.push(tenant);
-            }
+    console.log('removing ', server.name, server.ip);
+
+    const index = cloud.servers.indexOf(server);
+    if ( !!~index ) cloud.servers.splice(index, 1);
+    delete cloud.mapIpToServer[server.ip]
+
+    const
+        tenantsToRemoveFromMap = [],
+        devMap = cloud.tenants.map.dev;
+    for ( var tenant in devMap ) {
+        if ( devMap[tenant] === server.ip ) {
+            tenantsToRemoveFromMap.push(tenant);
         }
+    }
 
-        tenantsToRemoveFromMap.forEach(function(tenant){
-            delete cloud.tenants.map.dev[tenant];
-            delete cloud.tenants.map.dep[tenant];
-            delete cloud.tenants.map.dfc[tenant];
-        });
+    tenantsToRemoveFromMap.forEach(function(tenant){
+        if ( tenant === '*' ) return console.error(
+            '! [ERROR] attempt to remove * tenant'
+        );
+        delete cloud.tenants.map.dev[tenant];
+        delete cloud.tenants.map.dep[tenant];
+        delete cloud.tenants.map.dfc[tenant];
+    });
 
-        if ( tenantsToRemoveFromMap.length ) {
-            return cloud.NGINX.changeConfig(cloud.tenants.map);
-        }
-    })
+    if ( tenantsToRemoveFromMap.length ) {
+        return cloud.NGINX.changeConfig(cloud.tenants.map)
+        .then(function(){ return server.remove() });
+    } else {
+        return server.remove();
+    }
 };
 
 cloud.init = function ( o ) {
@@ -316,12 +323,14 @@ cloud.init = function ( o ) {
         return Q.all([
 
             cloud.NGINX.readConfig().then(function(map){
+                console.log('--> MAP IS : ', map);
                 cloud.tenants.map = map;
             }),
 
             cloud.PAPI.listInstances().then(function(list){
                 list = list || [];
                 if ( list.length ) {
+                    console.log('--> INSTANCES LIST IS : ', list);
                     return Q.all(list.map(function(item){
                         return cloud.includeInstance(item);
                     }))
@@ -331,6 +340,7 @@ cloud.init = function ( o ) {
                             ];
                     });
                 } else {
+                    console.log('--> INSTANCES LIST IS EMPTY');
                     return cloud.createInstance({
                         components : ['dev', 'dep', 'dfc'],
                         tenants    : ['*']
@@ -463,6 +473,9 @@ cloud.balance = (function(){
     }
 
     function unloadOverloaded (dump){
+
+        console.log('DUMP : ', dump);
+
         const highs = dump.cloud.highs;
 
         if ( !highs.length ) return Q.resolve(dump);
@@ -570,7 +583,7 @@ cloud.balance = (function(){
 
             dump._toCreate = newServers;
 
-            return createNewServers(dump).then(updateNGINX);
+            return updateNGINX(dump).then(createNewServers);
         });
     }
 

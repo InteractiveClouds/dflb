@@ -33,13 +33,14 @@ global.CFG = pathToConfig && require(pathToConfig) || {
     loadLevels : {
         regular : {
             idle : 1,
-            high : 9
+            high : 8
         },
         master : {
             idle : -1,
-            high : 6
+            high : 4
         }
     },
+    balanceEvery : 30000, // set it the same as lib/statServer SPERIOD
     docker_daemon : {
         useDefaultSettings: false,
         protocol: 'https',
@@ -69,12 +70,12 @@ global.CFG = pathToConfig && require(pathToConfig) || {
                 "app_build_path": "/var/lib/dreamface/data/app_builds",
                 "auth_conf_path" : "/var/lib/dreamface/data/.auth.conf",
                 "mdbw_options" : {
-                    "host" : "192.168.1.119",
+                    "host" : "192.168.0.100",
                     "port" : 27017
                 },
                 //"X-DREAMFACE-SERVER" : cloud.servers[0].name,
                 "redis_config" : {
-                    "host" : "192.168.1.119"
+                    "host" : "192.168.0.100"
                 },
                 compiler : {
                     host: '192.168.99.100',
@@ -93,7 +94,7 @@ global.CFG = pathToConfig && require(pathToConfig) || {
                 "tempDir"     : "/var/lib/dreamface/data/tmp",
                 "auth_conf_path" : "/var/lib/dreamface/data/.auth.conf",
                 "redis_config" : {
-                    "host" : "192.168.1.119"
+                    "host" : "192.168.0.100"
                 }
             }
         },
@@ -105,7 +106,7 @@ global.CFG = pathToConfig && require(pathToConfig) || {
                     {
                         "name" : "dfx",
                         "cfg"  : {
-                            "address"        : "http://192.168.99.100:3000/",
+                            "address"        : "http://localhost:3000/",
                             "auth_conf_path" : "/var/lib/dreamface/data/.auth.conf"
                         }
                     }
@@ -116,3 +117,8 @@ global.CFG = pathToConfig && require(pathToConfig) || {
         }
     }
 };
+
+
+
+
+kill 24663; kill 24871; kill 24874; kill 24883; kill 24979; kill 24982; kill 25040;

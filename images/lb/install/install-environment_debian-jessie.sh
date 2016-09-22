@@ -35,7 +35,7 @@ print_current_action "installing DFLB"
 cd /var/lib/dreamface/src/dflb
 git clone https://github.com/InteractiveClouds/dflb.git .
 git fetch
-git checkout itest
+git checkout dev
 npm install
 mkdir -p /usr/local/nginx-perl/lib
 cp lib/nginx_dfx_module/LBWorker.pm /usr/local/nginx-perl/lib/LBWorker.pm

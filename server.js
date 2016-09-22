@@ -6,7 +6,7 @@ const
     bodyParser = require('body-parser'),
     http = require('http'),
     Q = require('q'),
-    U = require('./lib/utils'),
+    U = require('./lib/utils/utils.js'),
     RGX_ERROR_URL = /^\/errors\/([^\/]+)\/?/,
     errors = {
             fallback : function ( req, res, next ) {
@@ -53,5 +53,6 @@ cloud.init({
     modem : require('./lib/modem'),
 
 })
-//.then(cloud.startBalancing)
-.done();
+.then(cloud.startBalancing)
+.fail(function(error){ console.error('CLOUD INIT ERROR : ', error) })
+//.done();
