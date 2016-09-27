@@ -25,14 +25,12 @@ app.use("/socket.io", express.static("socket.io"));
             })
         }()
     ]).then(function(res){
-        watch(config.logsPath, function( event ) {
+        watch(config.logsPath, {followSymLinks: true}, function( event ) {
             if (path.extname(event).substring(1) == 'log'){
                 var filePath = event;
                 return QFS.exists(filePath).then(function (exists) {
                     if (exists) {
                         return QFS.read(filePath).then(function (cont) {
-                            console.log("HERE");
-                            console.log(cont);
                             return QFS.read(path.join(filePath, '..', '..', 'config.json')).then(function (configFileContent) {
                                 //cpu
                                 if (filePath.indexOf('/' + config.cpuLogsFolderName + '/') > 0) {
@@ -41,7 +39,7 @@ app.use("/socket.io", express.static("socket.io"));
                                     var dataArray = lastLine.trim().split(',');
                                     var obj = {
                                         type: 'cpu',
-                                        dep: dataArray[0].split('-').pop(),
+                                        dep: dataArray[0],
                                         dev: dataArray[1],
                                         dfc: dataArray[2],
                                         instance: dataArray[3],
@@ -60,7 +58,7 @@ app.use("/socket.io", express.static("socket.io"));
                                     var dataArray = lastLine.trim().split(',');
                                     var obj = {
                                         type: 'req',
-                                        time: dataArray[0].split('-').pop(),
+                                        time: dataArray[0],
                                         instance: dataArray[1],
                                         tenant: dataArray[2],
                                         component: dataArray[3],
